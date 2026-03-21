@@ -7,6 +7,11 @@ from pathlib import Path
 from openai import OpenAI
 
 
+CONVENTIONAL_SUBJECT_PATTERN = re.compile(
+	r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+"
+)
+
+
 def main() -> int:
 	base_dir = Path(__file__).resolve().parent
 
@@ -91,8 +96,19 @@ def append_issue_reference_to_subject(message: str, issue_reference: str) -> str
 
 
 def get_git_diff() -> str:
+	staged_diff = run_git_command(["diff", "--cached"])
+	unstaged_diff = run_git_command(["diff"])
+
+	parts = [part for part in (staged_diff, unstaged_diff) if part.strip()]
+	if not parts:
+		return ""
+
+	return "\n".join(parts).strip() + "\n"
+
+
+def run_git_command(args: list[str]) -> str:
 	result = subprocess.run(
-		["git", "diff"],
+		["git", *args],
 		capture_output=True,
 		text=True,
 		encoding="utf-8",
@@ -100,7 +116,8 @@ def get_git_diff() -> str:
 	)
 
 	if result.returncode != 0:
-		raise RuntimeError(result.stderr.strip() or "Failed to run git diff")
+		command_text = "git " + " ".join(args)
+		raise RuntimeError(result.stderr.strip() or f"Failed to run {command_text}")
 
 	return result.stdout
 
@@ -116,6 +133,9 @@ def generate_commit_message(api_url: str, model: str, api_key: str, diff_text: s
 			"content": (
 				"You are an assistant that writes Git commit messages using Conventional Commits. "
 				"The commit message must be written in English. "
+				"The first line must strictly follow Conventional Commits format: "
+				"type(scope optional): subject. "
+				"Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. "
 				"Return only the generated commit message as plain Markdown text. "
 				"Do not add explanations, labels, or surrounding text. "
 				"Do not wrap the full output in a code block. "
@@ -145,6 +165,7 @@ def generate_commit_message(api_url: str, model: str, api_key: str, diff_text: s
 
 	message = (content or "").strip()
 	message = strip_surrounding_code_fence(message)
+	message = normalize_conventional_commit_message(message)
 	if not message:
 		raise RuntimeError("Generated commit message is empty")
 
@@ -199,6 +220,40 @@ def strip_surrounding_code_fence(text: str) -> str:
 
 	inner_text = "\n".join(lines[1:-1]).strip()
 	return inner_text
+
+
+def normalize_conventional_commit_message(message: str) -> str:
+	text = message.strip()
+	if not text:
+		return ""
+
+	lines = text.splitlines()
+	subject = lines[0].strip()
+	if not CONVENTIONAL_SUBJECT_PATTERN.fullmatch(subject):
+		subject = build_fallback_conventional_subject(subject)
+
+	body_lines = [line.rstrip() for line in lines[1:]]
+	if body_lines:
+		while body_lines and not body_lines[0].strip():
+			body_lines.pop(0)
+		while body_lines and not body_lines[-1].strip():
+			body_lines.pop()
+
+	if not body_lines:
+		return subject
+
+	return "\n".join([subject, "", *body_lines]).strip()
+
+
+def build_fallback_conventional_subject(subject: str) -> str:
+	text = subject.strip()
+	if not text:
+		return "chore: update changes"
+
+	if text[0].isupper():
+		text = text[0].lower() + text[1:]
+
+	return f"chore: {text}"
 
 
 if __name__ == "__main__":
