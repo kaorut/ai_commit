@@ -13,15 +13,27 @@ def is_git_repository() -> bool:
     return result.returncode == 0 and result.stdout.strip().lower() == "true"
 
 
-def get_git_diff(include_unstaged: bool = False) -> str:
+def get_git_diff(
+    revision_spec: str = "", include_unstaged: bool = False
+) -> str:
     """
     Retrieve git diff text for commit message generation.
 
-    When include_unstaged is False, only staged changes are included.
-    When include_unstaged is True, both staged and unstaged changes are included.
+    Two modes:
+    1. Revision-based mode (when revision_spec is provided):
+       - diff from specified revision(s) + unstaged changes
+    2. Staging mode (when revision_spec is empty):
+       - staged only, or staged + unstaged based on include_unstaged
+
+    Revision Spec Format (follows git diff syntax):
+    - "REV1..REV2"  → diff from REV1 to REV2 (exclusive of REV2) + unstaged
+    - "REV1...REV2" → diff from merge-base(REV1, REV2) to REV2 + unstaged
+    - "REV"         → diff from REV to working tree + unstaged
+    - ""            → staged and optionally unstaged changes
 
     Args:
-            include_unstaged: Include unstaged changes when True
+            revision_spec: Git revision specification (follows git diff format)
+            include_unstaged: Include unstaged changes when using staging mode
 
     Returns:
             Diff text for prompt generation
@@ -29,18 +41,87 @@ def get_git_diff(include_unstaged: bool = False) -> str:
     Raises:
             RuntimeError: If git operations fail
     """
-    staged_diff = run_git_command(["diff", "--cached"])
+    parts = []
 
-    parts = [part for part in (staged_diff,) if part.strip()]
-    if include_unstaged:
-        unstaged_diff = run_git_command(["diff"])
-        if unstaged_diff.strip():
-            parts.append(unstaged_diff)
+    if revision_spec:
+        # Revision-based mode: always include unstaged along with revision diff
+        revision_diff = _get_revision_diff(revision_spec)
+        if revision_diff.strip():
+            parts.append(revision_diff)
+    else:
+        # Staging mode
+        staged_diff = run_git_command(["diff", "--cached"])
+        if staged_diff.strip():
+            parts.append(staged_diff)
+
+    # Append unstaged changes (in both revision and staging modes)
+    unstaged_diff = run_git_command(["diff"])
+    if unstaged_diff.strip():
+        parts.append(unstaged_diff)
 
     if not parts:
         return ""
 
     return "\n".join(parts).strip() + "\n"
+
+
+def _get_revision_diff(revision_spec: str) -> str:
+    """
+    Generate diff for a git revision specification (follows git diff syntax).
+
+    Formats:
+    - "REV1..REV2"  → git diff REV1..REV2 (2-dot form)
+    - "REV1...REV2" → git diff REV1...REV2 (3-dot form)
+    - "REV"         → git diff REV (single commit)
+
+    Args:
+            revision_spec: Git revision specification
+
+    Returns:
+            Diff text
+
+    Raises:
+            ValueError: If revision_spec format is invalid
+            RuntimeError: If git operations fail
+    """
+    spec = revision_spec.strip()
+    if not spec:
+        raise ValueError("Revision spec cannot be empty")
+
+    # Check for 3-dot form (REV1...REV2)
+    if "..." in spec:
+        parts = spec.split("...")
+        if len(parts) != 2:
+            raise ValueError(
+                f"Invalid revision format '{revision_spec}'. "
+                "Use 'REV1...REV2' format (only one ... separator allowed)."
+            )
+        rev1, rev2 = parts[0].strip(), parts[1].strip()
+        if not rev1 or not rev2:
+            raise ValueError(
+                f"Invalid revision format '{revision_spec}'. "
+                "Both REV1 and REV2 must be non-empty in 'REV1...REV2' format."
+            )
+        return run_git_command(["diff", f"{rev1}...{rev2}"])
+
+    # Check for 2-dot form (REV1..REV2)
+    if ".." in spec:
+        parts = spec.split("..")
+        if len(parts) != 2:
+            raise ValueError(
+                f"Invalid revision format '{revision_spec}'. "
+                "Use 'REV1..REV2' format (only one .. separator allowed)."
+            )
+        rev1, rev2 = parts[0].strip(), parts[1].strip()
+        if not rev1 or not rev2:
+            raise ValueError(
+                f"Invalid revision format '{revision_spec}'. "
+                "Both REV1 and REV2 must be non-empty in 'REV1..REV2' format."
+            )
+        return run_git_command(["diff", f"{rev1}..{rev2}"])
+
+    # Single revision form (REV)
+    return run_git_command(["diff", spec])
 
 
 def run_git_command(args: list[str]) -> str:

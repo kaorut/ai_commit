@@ -33,7 +33,10 @@ def main() -> int:
             return 1
 
         config = load_api_config(base_dir)
-        diff_text = get_git_diff(include_unstaged=options.include_unstaged_for_diff)
+        diff_text = get_git_diff(
+            revision_spec=options.revision_spec,
+            include_unstaged=options.include_unstaged_for_diff,
+        )
 
         if not diff_text.strip():
             sys.stderr.write("No changes detected in git diff.\n")

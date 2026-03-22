@@ -34,7 +34,7 @@ Required keys are `api_url`, `model`, and `api_key`.
 ### Recommended: via batch file
 
 ```bat
-ai_commit.bat [issue_reference] [git_commit_options...]
+ai_commit.bat [issue_reference] [revision_spec] [git_commit_options...]
 ```
 
 `ai_commit.bat` does the following:
@@ -46,17 +46,27 @@ ai_commit.bat [issue_reference] [git_commit_options...]
 ### Direct execution
 
 ```bat
-python ai_commit.py [issue_reference] [git_commit_options...]
+python ai_commit.py [issue_reference] [revision_spec] [git_commit_options...]
 ```
 
 ## CLI Arguments
 
-### Positional argument
+### Positional arguments
 
 - `issue_reference` (optional)
   - Format: `#42` or `otherproject#4242`
   - Appended to the end of the commit subject line
   - Not passed as an argument to `git commit`
+
+- `revision_spec` (optional)
+  - Specifies the git revision(s) for the diff (follows git diff syntax)
+  - Formats:
+    - `REV1..REV2` — 2-dot form: diff from REV1 to REV2
+    - `REV1...REV2` — 3-dot form: diff from merge-base(REV1, REV2) to REV2
+    - `REV` — single commit: diff from REV to working tree
+    - (omitted) — staged and unstaged changes (default behavior)
+  - When `revision_spec` is provided, unstaged changes are **always included** along with the revision diff
+  - Examples: `HEAD^..HEAD`, `main..feature`, `v1.0...v1.1`
 
 ### Option arguments
 
@@ -67,6 +77,15 @@ python ai_commit.py [issue_reference] [git_commit_options...]
 
 - With `-a` or `--all`: AI input diff is `staged + unstaged`
 - Without `-a/--all`: AI input diff is `staged only`
+
+### Special rule for `--amend`
+
+- If `--amend` is present and no `revision_spec` is explicitly provided:
+  - `revision_spec` is automatically set to `HEAD^..HEAD`
+  - This shows the diff of the current commit (HEAD) for amending
+- If both `--amend` and an explicit `revision_spec` are provided:
+  - The explicit `revision_spec` takes precedence
+  - `--amend` is still passed through to `git commit`
 
 ## Interactive Flow
 
@@ -129,7 +148,13 @@ ai_commit.bat --help
 ```bat
 ai_commit.bat
 ai_commit.bat #123
+ai_commit.bat HEAD^
+ai_commit.bat main..feature
+ai_commit.bat #123 HEAD^..HEAD
 ai_commit.bat #123 --no-verify
+ai_commit.bat v1.0..v1.1 -a --no-verify
+ai_commit.bat --amend
+ai_commit.bat #42 --amend
 ai_commit.bat --all
 ai_commit.bat #42 -a --no-verify
 ```
