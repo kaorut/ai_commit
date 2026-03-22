@@ -4,6 +4,21 @@ import subprocess
 from typing import Sequence
 
 
+def is_git_repository() -> bool:
+	"""Return True if current working directory is inside a Git repository."""
+	try:
+		result = subprocess.run(
+			["git", "rev-parse", "--is-inside-work-tree"],
+			capture_output=True,
+			text=True,
+			encoding="utf-8",
+			errors="replace",
+		)
+	except FileNotFoundError as exc:
+		raise RuntimeError("git command not found. Please install Git.") from exc
+	return result.returncode == 0 and result.stdout.strip().lower() == "true"
+
+
 def run_git_command(args: list[str]) -> str:
 	"""
 	Execute a git command and return the output.
@@ -17,13 +32,16 @@ def run_git_command(args: list[str]) -> str:
 	Raises:
 		RuntimeError: If the git command fails
 	"""
-	result = subprocess.run(
-		["git", *args],
-		capture_output=True,
-		text=True,
-		encoding="utf-8",
-		errors="replace",
-	)
+	try:
+		result = subprocess.run(
+			["git", *args],
+			capture_output=True,
+			text=True,
+			encoding="utf-8",
+			errors="replace",
+		)
+	except FileNotFoundError as exc:
+		raise RuntimeError("git command not found. Please install Git.") from exc
 
 	if result.returncode != 0:
 		command_text = "git " + " ".join(args)
@@ -78,13 +96,16 @@ def commit_with_message(message: str, commit_options: Sequence[str]) -> None:
 		raise RuntimeError("Commit message is empty")
 
 	command = ["git", "commit", *commit_options, "-F", "-"]
-	result = subprocess.run(
-		command,
-		input=text + "\n",
-		text=True,
-		encoding="utf-8",
-		errors="replace",
-	)
+	try:
+		result = subprocess.run(
+			command,
+			input=text + "\n",
+			text=True,
+			encoding="utf-8",
+			errors="replace",
+		)
+	except FileNotFoundError as exc:
+		raise RuntimeError("git command not found. Please install Git.") from exc
 
 	if result.returncode != 0:
 		raise RuntimeError(f"git commit failed (exit code: {result.returncode})")

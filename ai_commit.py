@@ -7,7 +7,7 @@ from pathlib import Path
 from modules.ai_client import generate_commit_message
 from modules.cli import parse_arguments
 from modules.config import load_api_config
-from modules.git_operations import get_git_diff
+from modules.git_operations import get_git_diff, is_git_repository
 from modules.interactive_flow import run_interactive_commit_flow
 from modules.message_processor import (
 	append_issue_reference_to_subject,
@@ -28,6 +28,9 @@ def main() -> int:
 
 	try:
 		options = parse_arguments(sys.argv[1:])
+		if not is_git_repository():
+			sys.stderr.write("Current directory is not a Git repository.\n")
+			return 1
 		config = load_api_config(base_dir)
 		diff_text = get_git_diff(include_unstaged=options.include_unstaged_for_diff)
 		
