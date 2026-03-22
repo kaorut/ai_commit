@@ -13,7 +13,7 @@ A CLI tool that generates a commit message from Git diffs using AI, asks for con
 ## Requirements
 
 - Windows
-- Python virtual environment (`venv`)
+- Python 3.x (virtual environment recommended, but system Python works as fallback)
 - Git command available in PATH
 - Configuration file at `.secret/api.json`
 
@@ -39,7 +39,8 @@ ai_commit.bat [issue_reference] [revision_spec] [git_commit_options...]
 
 `ai_commit.bat` does the following:
 
-- Runs with `venv\Scripts\python.exe`
+- Attempts to run with `venv\Scripts\python.exe` if available
+- Falls back to system Python (`python.exe` in PATH) if venv is not found
 - Checks that `ai_commit.py` exists
 - Forwards all arguments to `ai_commit.py`
 
