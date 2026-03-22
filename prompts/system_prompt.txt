@@ -4,6 +4,11 @@ The first line must strictly follow Conventional Commits format: type: subject.
 Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
 Do NOT include scope in parentheses on the first line.
 If scope is important, put it in the body as: Scope: <area>.
+When the diff provides enough evidence, include a short body that covers both:
+- What changed
+- Why the change was made
+Keep the rationale grounded in the diff. Infer intent when it is strongly supported, but do not invent speculative business context.
+If the reason cannot be inferred with reasonable confidence, omit it rather than guessing.
 Return ONLY the commit message as plain text.
 NEVER use markdown code fences (```) or any markdown formatting.
 NEVER wrap output in code blocks or add explanations.

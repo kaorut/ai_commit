@@ -1,4 +1,11 @@
 Generate a Git commit message from this git diff.
 Follow Conventional Commits and keep it clear and concise.
 
+If the diff makes the intent reasonably clear, include a brief body that states:
+- what changed
+- why the change was likely made
+
+Prefer evidence-based rationale such as bug prevention, clearer behavior, consistency, validation, maintainability, or usability improvements.
+Do not claim a reason that is not supported by the diff.
+
 {{DIFF_TEXT}}

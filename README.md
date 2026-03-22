@@ -122,6 +122,27 @@ If no editor can be resolved, the tool prints an error and exits.
 - Converts `type(scope): subject` to `type: subject`
 - Moves scope to body as `Scope: <scope>`
 - Appends `issue_reference` to the subject line when provided
+- When the diff supports it, the body may include both a short summary of what changed and an inferred reason for the change
+- If the reason cannot be inferred with reasonable confidence from the diff, the tool prefers omission over speculation
+
+## Improving Why Inference
+
+`git diff` alone is often enough to infer low-level intent such as fixing validation, preventing a crash, reducing duplication, or improving readability.
+
+It is usually not enough to infer higher-level product or business intent. If you want the generated message to explain "why" more reliably, the most useful extra inputs are:
+
+- issue or ticket reference with a short title
+- problem statement or bug symptom
+- user-visible impact
+- expected behavior before and after the change
+- design note or implementation constraint
+- related error message, log snippet, or failing test name
+
+Examples of useful context:
+
+- `#123 Fix crash when revision_spec is empty`
+- `Bug: amend flow used the wrong diff range for HEAD`
+- `Why: align single-revision behavior with git show semantics`
 
 ## Help
 
