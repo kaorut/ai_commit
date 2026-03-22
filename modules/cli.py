@@ -5,6 +5,9 @@ import re
 from typing import Sequence
 
 
+ISSUE_REFERENCE_PATTERN = re.compile(r"(?:[A-Za-z0-9_.-]+)?#\d+")
+
+
 def parse_arguments(args: Sequence[str]) -> argparse.Namespace:
 	"""
 	Parse command-line arguments.
@@ -28,19 +31,25 @@ def parse_arguments(args: Sequence[str]) -> argparse.Namespace:
 		default="",
 		help="Optional issue reference like '#42' or 'otherproject#4242'.",
 	)
+	# argparse should keep handling built-in help behavior.
+	if any(token in ("-h", "--help") for token in args):
+		parser.parse_args(args)
 
-	parsed_args, remaining_args = parser.parse_known_args(args)
-	parsed_args.issue_reference = validate_issue_reference(parsed_args.issue_reference)
+	parsed_args = argparse.Namespace()
+	parsed_args.issue_reference = ""
+	parsed_args.commit_options = []
 
-	non_option_args = [token for token in remaining_args if not token.startswith("-")]
-	if non_option_args:
-		raise ValueError(
-			"Non-option arguments are not supported: " + " ".join(non_option_args)
-		)
+	for token in args:
+		if token.startswith("-"):
+			parsed_args.commit_options.append(token)
+			continue
 
-	parsed_args.commit_options = [
-		token for token in remaining_args if token.startswith("-")
-	]
+		if not parsed_args.issue_reference and ISSUE_REFERENCE_PATTERN.fullmatch(token):
+			parsed_args.issue_reference = validate_issue_reference(token)
+			continue
+
+		raise ValueError(f"Non-option arguments are not supported: {token}")
+
 	parsed_args.include_unstaged_for_diff = has_all_option(parsed_args.commit_options)
 	return parsed_args
 
@@ -76,7 +85,7 @@ def validate_issue_reference(issue_reference: str) -> str:
 	if not value:
 		return ""
 
-	if not re.fullmatch(r"(?:[A-Za-z0-9_.-]+)?#\d+", value):
+	if not ISSUE_REFERENCE_PATTERN.fullmatch(value):
 		raise ValueError("Issue reference must be like '#42' or 'otherproject#4242'")
 
 	return value

@@ -81,11 +81,10 @@ def commit_with_message(message: str, commit_options: Sequence[str]) -> None:
 	result = subprocess.run(
 		command,
 		input=text + "\n",
-		capture_output=True,
 		text=True,
 		encoding="utf-8",
 		errors="replace",
 	)
 
 	if result.returncode != 0:
-		raise RuntimeError(result.stderr.strip() or "git commit failed")
+		raise RuntimeError(f"git commit failed (exit code: {result.returncode})")
