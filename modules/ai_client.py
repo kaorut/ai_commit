@@ -10,7 +10,11 @@ PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
 def generate_commit_message(
-    api_url: str, model: str, api_key: str, diff_text: str
+    api_url: str,
+    model: str,
+    api_key: str,
+    diff_text: str,
+    issue_context: str = "",
 ) -> str:
     """
     Generate a commit message from git diff using AI API.
@@ -20,6 +24,7 @@ def generate_commit_message(
             model: Model name to use
             api_key: API key for authentication
             diff_text: Git diff content
+            issue_context: Optional issue context for RAG
 
     Returns:
             Generated commit message
@@ -30,7 +35,7 @@ def generate_commit_message(
     base_url = normalize_provider_base_url(api_url)
     client = OpenAI(api_key=api_key, base_url=base_url)
     system_prompt = read_prompt_template("system_prompt.txt")
-    user_prompt = build_user_prompt(diff_text)
+    user_prompt = build_user_prompt(diff_text, issue_context=issue_context)
 
     input_items = [
         {
@@ -95,10 +100,19 @@ def extract_text_from_response(response: Any) -> str:
     return "\n".join(parts)
 
 
-def build_user_prompt(diff_text: str) -> str:
+def build_user_prompt(diff_text: str, *, issue_context: str = "") -> str:
     """Build user prompt by injecting git diff into template."""
     template = read_prompt_template("user_prompt.txt")
-    return template.replace("{{DIFF_TEXT}}", diff_text)
+    prompt = template.replace("{{DIFF_TEXT}}", diff_text)
+    context = issue_context.strip()
+    if not context:
+        return prompt
+
+    return (
+        prompt
+        + "\n\nGitHub issue context (RAG). Use this only as supplemental evidence:\n"
+        + context
+    )
 
 
 def read_prompt_template(file_name: str) -> str:

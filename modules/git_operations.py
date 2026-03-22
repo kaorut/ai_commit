@@ -165,6 +165,44 @@ def get_last_commit_subject() -> str:
     return result.stdout.strip()
 
 
+def get_origin_owner_repo() -> tuple[str, str]:
+    """Return (owner, repo) parsed from git remote origin URL."""
+    result = _run_git(["remote", "get-url", "origin"], capture_output=True)
+    if result.returncode != 0:
+        return "", ""
+
+    return parse_owner_repo_from_remote_url(result.stdout.strip())
+
+
+def parse_owner_repo_from_remote_url(url: str) -> tuple[str, str]:
+    """Parse owner and repo name from HTTPS/SSH GitHub remote URL."""
+    value = url.strip()
+    if not value:
+        return "", ""
+
+    if value.startswith("git@") and ":" in value:
+        value = value.split(":", 1)[1]
+    elif "://" in value:
+        parts = value.split("/", 3)
+        if len(parts) < 5:
+            return "", ""
+        value = "/".join(parts[3:])
+
+    if value.endswith(".git"):
+        value = value[:-4]
+
+    segments = [segment for segment in value.split("/") if segment]
+    if len(segments) < 2:
+        return "", ""
+
+    owner = segments[-2].strip()
+    repo = segments[-1].strip()
+    if not owner or not repo:
+        return "", ""
+
+    return owner, repo
+
+
 def commit_with_message(message: str, commit_options: Sequence[str]) -> None:
     """
     Run git commit with the provided message and pass-through options.

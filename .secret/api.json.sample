@@ -1,5 +1,17 @@
 {
-  "api_url": "https://api.x.ai/v1",
-  "model": "grok-4-1-fast-non-reasoning",
-  "api_key": "YOUR_API_KEY"
+  "openai": {
+    "api_url": "https://api.x.ai/v1",
+    "model": "grok-4-1-fast-non-reasoning",
+    "api_key": "YOUR_API_KEY"
+  },
+  "github": [
+    {
+      "name": "RESOURCE_NAME1",
+      "api_key": "YOUR_GITHUB_API_KEY_FOR_RESOURCE1"
+    },
+    {
+      "name": "RESOURCE_NAME2",
+      "api_key": "YOUR_GITHUB_API_KEY_FOR_RESOURCE2"
+    }
+  ]
 }

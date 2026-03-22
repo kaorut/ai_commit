@@ -21,13 +21,34 @@ A CLI tool that generates a commit message from Git diffs using AI, asks for con
 
 ```json
 {
-  "api_url": "https://api.x.ai/v1",
-  "model": "grok-4-latest",
-  "api_key": "YOUR_API_KEY"
+  "openai": {
+    "api_url": "https://api.x.ai/v1",
+    "model": "grok-4-latest",
+    "api_key": "YOUR_OPENAI_API_KEY"
+  },
+  "github": [
+    {
+      "name": "kaorut/ai_commit",
+      "api_key": "YOUR_GITHUB_TOKEN_FOR_AI_COMMIT"
+    },
+    {
+      "name": "tetengo/hasune.rs",
+      "api_key": "YOUR_GITHUB_TOKEN_FOR_HASUNE"
+    },
+    {
+      "name": "*",
+      "api_key": "YOUR_DEFAULT_GITHUB_TOKEN_OPTIONAL"
+    }
+  ]
 }
 ```
 
-Required keys are `api_url`, `model`, and `api_key`.
+Required keys are `openai.api_url`, `openai.model`, and `openai.api_key`.
+Optional key:
+
+- `github[]`: resource-specific GitHub tokens used to call GitHub Issues API for issue-context RAG.
+- `github[].name`: resource selector. Exact `owner/repo` is preferred. `owner`, `repo`, and `*` are supported as fallback selectors.
+- `github[].api_key`: token for the matched resource.
 
 ## How To Run
 
@@ -126,6 +147,17 @@ If no editor can be resolved, the tool prints an error and exits.
 - If `issue_reference` is omitted, reuses all issue references found in the latest commit subject when available
 - When the diff supports it, the body may include both a short summary of what changed and an inferred reason for the change
 - If the reason cannot be inferred with reasonable confidence from the diff, the tool prefers omission over speculation
+
+## GitHub Issue RAG
+
+When the commit message includes issue references (explicitly passed or inherited from the latest commit subject), the tool attempts to fetch issue details from GitHub and appends them to the AI user prompt as supplemental context.
+
+- `#123` resolves against the current repository's `origin` remote
+- `repo#123` resolves against the same owner as `origin`, with `repo` overridden
+- `owner/repo#123` resolves directly to that repository
+- The GitHub token is selected in this order: exact `owner/repo`, then `owner` or `repo`, then `*`
+
+If the API call fails, the issue context is skipped and commit generation continues.
 
 ## Improving Why Inference
 

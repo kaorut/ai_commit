@@ -7,7 +7,13 @@ from pathlib import Path
 from modules.ai_client import generate_commit_message
 from modules.cli import find_issue_references, parse_arguments
 from modules.config import load_api_config
-from modules.git_operations import get_git_diff, get_last_commit_subject, is_git_repository
+from modules.git_operations import (
+    get_git_diff,
+    get_last_commit_subject,
+    get_origin_owner_repo,
+    is_git_repository,
+)
+from modules.github_issue_client import build_issue_context
 from modules.interactive_flow import run_interactive_commit_flow
 from modules.message_processor import (
     append_issue_reference_to_subject,
@@ -41,6 +47,13 @@ def main() -> int:
         issue_reference = options.issue_reference or find_issue_references(
             get_last_commit_subject()
         )
+        owner, repo = get_origin_owner_repo()
+        issue_context = build_issue_context(
+            issue_reference,
+            default_owner=owner,
+            default_repo=repo,
+            github_resources=config.get("github_resources") or [],
+        )
 
         if not diff_text.strip():
             sys.stderr.write("No changes detected in git diff.\n")
@@ -51,6 +64,7 @@ def main() -> int:
             model=config["model"],
             api_key=config["api_key"],
             diff_text=diff_text,
+            issue_context=issue_context,
             issue_reference=issue_reference,
         )
 
@@ -72,6 +86,7 @@ def build_commit_message(
     model: str,
     api_key: str,
     diff_text: str,
+    issue_context: str,
     issue_reference: str,
 ) -> str:
     """Generate and normalize commit message from diff text."""
@@ -80,6 +95,7 @@ def build_commit_message(
         model=model,
         api_key=api_key,
         diff_text=diff_text,
+        issue_context=issue_context,
     )
     message = strip_surrounding_code_fence(message)
     message = remove_all_code_fences(message)
