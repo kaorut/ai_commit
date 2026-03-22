@@ -42,28 +42,35 @@ def get_git_diff(
     Raises:
             RuntimeError: If git operations fail
     """
-    parts = []
+    parts: list[str] = []
 
     if revision_spec:
-        # Revision-based mode: always include unstaged along with revision diff
-        revision_diff = _get_revision_diff(revision_spec)
-        if revision_diff.strip():
-            parts.append(revision_diff)
+        _append_non_empty_diff(parts, _get_revision_diff(revision_spec))
     else:
-        # Staging mode
-        staged_diff = run_git_command(_build_diff_command("--cached"))
-        if staged_diff.strip():
-            parts.append(staged_diff)
+        _append_non_empty_diff(parts, run_git_command(_build_diff_command("--cached")))
 
-    # Append unstaged changes (in both revision and staging modes)
-    unstaged_diff = run_git_command(_build_diff_command())
-    if unstaged_diff.strip():
-        parts.append(unstaged_diff)
+    if _should_include_unstaged_diff(
+        revision_spec=revision_spec,
+        include_unstaged=include_unstaged,
+    ):
+        _append_non_empty_diff(parts, run_git_command(_build_diff_command()))
 
     if not parts:
         return ""
 
     return "\n".join(parts).strip() + "\n"
+
+
+def _append_non_empty_diff(parts: list[str], diff_text: str) -> None:
+    """Append diff text when it has non-whitespace content."""
+    if diff_text.strip():
+        parts.append(diff_text)
+
+
+def _should_include_unstaged_diff(*, revision_spec: str, include_unstaged: bool) -> bool:
+    """Return True when unstaged changes should be included in AI input."""
+    # Why not use only include_unstaged: revision mode always appends unstaged by spec.
+    return bool(revision_spec) or include_unstaged
 
 
 def _get_revision_diff(revision_spec: str) -> str:
@@ -89,45 +96,69 @@ def _get_revision_diff(revision_spec: str) -> str:
     if not spec:
         raise ValueError("Revision spec cannot be empty")
 
+    target = _resolve_revision_diff_target(
+        spec,
+        original_revision_spec=revision_spec,
+    )
+    return run_git_command(_build_diff_command(target))
+
+
+def _resolve_revision_diff_target(
+    revision_spec: str,
+    *,
+    original_revision_spec: str,
+) -> str:
+    """Resolve revision spec into one git diff target argument."""
     # Check for 3-dot form (REV1...REV2)
-    if "..." in spec:
-        parts = spec.split("...")
-        if len(parts) != 2:
-            raise ValueError(
-                f"Invalid revision format '{revision_spec}'. "
-                "Use 'REV1...REV2' format (only one ... separator allowed)."
-            )
-        rev1, rev2 = parts[0].strip(), parts[1].strip()
-        if not rev1 or not rev2:
-            raise ValueError(
-                f"Invalid revision format '{revision_spec}'. "
-                "Both REV1 and REV2 must be non-empty in 'REV1...REV2' format."
-            )
-        return run_git_command(_build_diff_command(f"{rev1}...{rev2}"))
+    if "..." in revision_spec:
+        rev1, rev2 = _split_revision_pair(
+            revision_spec,
+            separator="...",
+            original_revision_spec=original_revision_spec,
+        )
+        return f"{rev1}...{rev2}"
 
     # Check for 2-dot form (REV1..REV2)
-    if ".." in spec:
-        parts = spec.split("..")
-        if len(parts) != 2:
-            raise ValueError(
-                f"Invalid revision format '{revision_spec}'. "
-                "Use 'REV1..REV2' format (only one .. separator allowed)."
-            )
-        rev1, rev2 = parts[0].strip(), parts[1].strip()
-        if not rev1 or not rev2:
-            raise ValueError(
-                f"Invalid revision format '{revision_spec}'. "
-                "Both REV1 and REV2 must be non-empty in 'REV1..REV2' format."
-            )
-        return run_git_command(_build_diff_command(f"{rev1}..{rev2}"))
+    if ".." in revision_spec:
+        rev1, rev2 = _split_revision_pair(
+            revision_spec,
+            separator="..",
+            original_revision_spec=original_revision_spec,
+        )
+        return f"{rev1}..{rev2}"
 
     # Single revision form (REV)
-    return run_git_command(_build_diff_command(spec))
+    return revision_spec
 
 
 def _build_diff_command(*args: str) -> list[str]:
     """Build git diff command arguments with a fixed unified context."""
     return ["diff", DIFF_UNIFIED_OPTION, *args]
+
+
+def _split_revision_pair(
+    revision_spec: str,
+    *,
+    separator: str,
+    original_revision_spec: str,
+) -> tuple[str, str]:
+    """Split and validate one two-revision specification."""
+    parts = revision_spec.split(separator)
+    if len(parts) != 2:
+        raise ValueError(
+            f"Invalid revision format '{original_revision_spec}'. "
+            f"Use 'REV1{separator}REV2' format "
+            f"(only one {separator} separator allowed)."
+        )
+
+    rev1, rev2 = parts[0].strip(), parts[1].strip()
+    if not rev1 or not rev2:
+        raise ValueError(
+            f"Invalid revision format '{original_revision_spec}'. "
+            f"Both REV1 and REV2 must be non-empty in 'REV1{separator}REV2' format."
+        )
+
+    return rev1, rev2
 
 
 def run_git_command(args: list[str]) -> str:
@@ -176,22 +207,16 @@ def get_origin_owner_repo() -> tuple[str, str]:
 
 def parse_owner_repo_from_remote_url(url: str) -> tuple[str, str]:
     """Parse owner and repo name from HTTPS/SSH GitHub remote URL."""
-    value = url.strip()
-    if not value:
+    remote_path = _extract_remote_path(url)
+    if not remote_path:
         return "", ""
 
-    if value.startswith("git@") and ":" in value:
-        value = value.split(":", 1)[1]
-    elif "://" in value:
-        parts = value.split("/", 3)
-        if len(parts) < 5:
-            return "", ""
-        value = "/".join(parts[3:])
+    return _parse_owner_repo_from_path(remote_path)
 
-    if value.endswith(".git"):
-        value = value[:-4]
 
-    segments = [segment for segment in value.split("/") if segment]
+def _parse_owner_repo_from_path(remote_path: str) -> tuple[str, str]:
+    """Parse owner/repo from remote path-like text."""
+    segments = [segment for segment in remote_path.split("/") if segment]
     if len(segments) < 2:
         return "", ""
 
@@ -201,6 +226,40 @@ def parse_owner_repo_from_remote_url(url: str) -> tuple[str, str]:
         return "", ""
 
     return owner, repo
+
+
+def _extract_remote_path(url: str) -> str:
+    """Extract owner/repo-like path from SSH/HTTPS remote URL."""
+    value = url.strip()
+    if not value:
+        return ""
+
+    ssh_path = _extract_ssh_remote_path(value)
+    if ssh_path:
+        value = ssh_path
+    elif "://" in value:
+        value = _extract_http_remote_path(value)
+        if not value:
+            return ""
+
+    if value.endswith(".git"):
+        value = value[:-4]
+    return value
+
+
+def _extract_ssh_remote_path(url: str) -> str:
+    """Extract path from SSH remote URL (git@host:owner/repo.git)."""
+    if not url.startswith("git@") or ":" not in url:
+        return ""
+    return url.split(":", 1)[1]
+
+
+def _extract_http_remote_path(url: str) -> str:
+    """Extract path from HTTP(S) remote URL."""
+    parts = url.split("/", 3)
+    if len(parts) < 5:
+        return ""
+    return "/".join(parts[3:])
 
 
 def commit_with_message(message: str, commit_options: Sequence[str]) -> None:

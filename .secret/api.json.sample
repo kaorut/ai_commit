@@ -6,12 +6,16 @@
   },
   "github": [
     {
-      "name": "RESOURCE_NAME1",
-      "api_key": "YOUR_GITHUB_API_KEY_FOR_RESOURCE1"
+      "name": "owner1/repo1",
+      "api_key": "YOUR_GITHUB_API_KEY_FOR_OWNER1_REPO1"
     },
     {
-      "name": "RESOURCE_NAME2",
-      "api_key": "YOUR_GITHUB_API_KEY_FOR_RESOURCE2"
+      "name": "owner2/*",
+      "api_key": "YOUR_GITHUB_API_KEY_FOR_OWNER2"
+    },
+    {
+      "name": "*",
+      "api_key": "YOUR_DEFAULT_GITHUB_API_KEY_OPTIONAL"
     }
   ]
 }

@@ -12,6 +12,8 @@ SUBJECT_WITH_OPTIONAL_SCOPE_PATTERN: Pattern[str] = re.compile(
     r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(([^)]+)\))?(!)?:\s+(.+)$"
 )
 
+BOLD_SUBJECT_PATTERN: Pattern[str] = re.compile(r"\*\*([^:]+?):\s*(.+)")
+
 
 def strip_surrounding_code_fence(text: str) -> str:
     """
@@ -78,19 +80,10 @@ def normalize_conventional_commit_message(message: str) -> str:
         # Also check original message for markdown bold lines
         # Pattern handles both **text:** and **text):** formats
         for original_line in message.splitlines():
-            # Extract content from markdown bold: **content:** or **content):**
-            bold_match = re.search(r"\*\*([^:]+?):\s*(.+)", original_line)
-            if bold_match:
-                # Found a markdown bold subject, combine the groups
-                part1 = bold_match.group(1).strip()
-                part2 = bold_match.group(2).strip()
-                # Remove any leading ** from part2
-                part2 = part2.lstrip("*").strip()
-                candidate = part1 + ": " + part2
-                candidate = sanitize_subject_line(candidate)
-                if len(candidate) >= 5:
-                    subject = candidate
-                    break
+            candidate = _extract_markdown_bold_subject_candidate(original_line)
+            if candidate:
+                subject = candidate
+                break
 
         # Still no good subject? Try other lines from decomposed message
         if not subject:
@@ -204,6 +197,20 @@ def sanitize_subject_line(subject: str) -> str:
     # Remove any remaining backticks
     text = re.sub(r"`+", "", text).strip()
     return text
+
+
+def _extract_markdown_bold_subject_candidate(line: str) -> str:
+    """Extract one subject candidate from markdown bold format."""
+    bold_match = BOLD_SUBJECT_PATTERN.search(line)
+    if not bold_match:
+        return ""
+
+    part1 = bold_match.group(1).strip()
+    part2 = bold_match.group(2).strip().lstrip("*").strip()
+    candidate = sanitize_subject_line(part1 + ": " + part2)
+    if len(candidate) < 5:
+        return ""
+    return candidate
 
 
 def remove_all_code_fences(text: str) -> str:

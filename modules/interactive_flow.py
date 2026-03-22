@@ -5,11 +5,12 @@ import shlex
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Sequence
 
 from modules.git_operations import commit_with_message, run_git_command
 
 
-def run_interactive_commit_flow(message: str, commit_options: list[str]) -> int:
+def run_interactive_commit_flow(message: str, commit_options: Sequence[str]) -> int:
     """
     Run interactive flow and commit depending on user choice.
 

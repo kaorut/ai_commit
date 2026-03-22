@@ -5,14 +5,14 @@ from typing import Any
 
 from openai import OpenAI
 
+from modules.config import OpenAIConfig
+
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
 def generate_commit_message(
-    api_url: str,
-    model: str,
-    api_key: str,
+    openai_config: OpenAIConfig,
     diff_text: str,
     issue_context: str = "",
 ) -> str:
@@ -20,9 +20,7 @@ def generate_commit_message(
     Generate a commit message from git diff using AI API.
 
     Args:
-            api_url: Base API URL
-            model: Model name to use
-            api_key: API key for authentication
+            openai_config: OpenAI-compatible API configuration
             diff_text: Git diff content
             issue_context: Optional issue context for RAG
 
@@ -32,8 +30,8 @@ def generate_commit_message(
     Raises:
             RuntimeError: If API request fails or message is empty
     """
-    base_url = normalize_provider_base_url(api_url)
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    base_url = normalize_provider_base_url(openai_config.api_url)
+    client = OpenAI(api_key=openai_config.api_key, base_url=base_url)
     system_prompt = read_prompt_template("system_prompt.txt")
     user_prompt = build_user_prompt(diff_text, issue_context=issue_context)
 
@@ -50,7 +48,7 @@ def generate_commit_message(
 
     try:
         response = client.responses.create(
-            model=model,
+            model=openai_config.model,
             input=input_items,
             temperature=0.2,
             store=False,

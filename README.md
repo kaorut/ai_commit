@@ -36,6 +36,10 @@ A CLI tool that generates a commit message from Git diffs using AI, asks for con
       "api_key": "YOUR_GITHUB_TOKEN_FOR_HASUNE"
     },
     {
+      "name": "kaorut/*",
+      "api_key": "YOUR_GITHUB_TOKEN_FOR_KAORUT_RESOURCES"
+    },
+    {
       "name": "*",
       "api_key": "YOUR_DEFAULT_GITHUB_TOKEN_OPTIONAL"
     }
@@ -47,7 +51,7 @@ Required keys are `openai.api_url`, `openai.model`, and `openai.api_key`.
 Optional key:
 
 - `github[]`: resource-specific GitHub tokens used to call GitHub Issues API for issue-context RAG.
-- `github[].name`: resource selector. Exact `owner/repo` is preferred. `owner`, `repo`, and `*` are supported as fallback selectors.
+- `github[].name`: resource selector. Supported forms are `owner/repo`, `owner/*`, `owner`, `repo`, and `*`.
 - `github[].api_key`: token for the matched resource.
 
 ## How To Run
@@ -155,7 +159,8 @@ When the commit message includes issue references (explicitly passed or inherite
 - `#123` resolves against the current repository's `origin` remote
 - `repo#123` resolves against the same owner as `origin`, with `repo` overridden
 - `owner/repo#123` resolves directly to that repository
-- The GitHub token is selected in this order: exact `owner/repo`, then `owner` or `repo`, then `*`
+- The GitHub token is selected in this order: exact `owner/repo`, then `owner/*`, then `owner` or `repo`, then `*`
+- If multiple entries match with the same priority, the first declared entry in `github[]` is used
 
 If the API call fails, the issue context is skipped and commit generation continues.
 

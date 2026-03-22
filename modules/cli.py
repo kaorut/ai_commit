@@ -15,7 +15,7 @@ class ParsedOptions:
 
     issue_reference: str
     revision_spec: str
-    commit_options: list[str]
+    commit_options: tuple[str, ...]
     include_unstaged_for_diff: bool
 
 
@@ -98,44 +98,47 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_tokens(args: Sequence[str]) -> tuple[str, str, list[str]]:
+def _parse_tokens(args: Sequence[str]) -> tuple[str, str, tuple[str, ...]]:
     """Parse tokens into issue reference, revision spec, and git commit options."""
-    issue_reference = ""
-    revision_spec = ""
+    issue_reference, revision_spec = "", ""
     commit_options: list[str] = []
-    positional_count = 0
+    positional_tokens: list[str] = []
 
     for token in args:
         if token.startswith("-"):
             commit_options.append(token)
             continue
 
-        # Non-option token: assign to issue_reference (1st) or revision_spec (2nd)
-        if positional_count == 0:
-            # First positional: check if it's a valid issue reference
-            if ISSUE_REFERENCE_PATTERN.fullmatch(token):
-                issue_reference = validate_issue_reference(token)
-            else:
-                # Not a valid issue ref, treat as revision_spec
-                revision_spec = token
-            positional_count += 1
-            continue
+        positional_tokens.append(token)
+        issue_reference, revision_spec = _assign_positional_token(
+            token,
+            position=len(positional_tokens),
+            issue_reference=issue_reference,
+            revision_spec=revision_spec,
+        )
 
-        if positional_count == 1:
-            # Second positional: assign to revision_spec (or issue_reference if first was revision)
-            if revision_spec:
-                # First arg was already treated as revision, second is not allowed
-                raise ValueError(f"Non-option arguments are not supported: {token}")
-            else:
-                # First arg was issue_reference, second is revision_spec
-                revision_spec = token
-            positional_count += 1
-            continue
+    return issue_reference, revision_spec, tuple(commit_options)
 
-        # Third or more positional arguments are never allowed
-        raise ValueError(f"Non-option arguments are not supported: {token}")
 
-    return issue_reference, revision_spec, commit_options
+def _assign_positional_token(
+    token: str,
+    *,
+    position: int,
+    issue_reference: str,
+    revision_spec: str,
+) -> tuple[str, str]:
+    """Assign one positional token into issue_reference/revision_spec buckets."""
+    if position == 1:
+        if ISSUE_REFERENCE_PATTERN.fullmatch(token):
+            return validate_issue_reference(token), revision_spec
+        return issue_reference, token
+
+    if position == 2:
+        if revision_spec:
+            raise ValueError(f"Non-option arguments are not supported: {token}")
+        return issue_reference, token
+
+    raise ValueError(f"Non-option arguments are not supported: {token}")
 
 
 def has_all_option(commit_options: Sequence[str]) -> bool:
@@ -195,9 +198,12 @@ def find_issue_references(text: str) -> str:
         return ""
 
     unique_references: list[str] = []
+    seen_references: set[str] = set()
     for match in matches:
         issue_reference = validate_issue_reference(match)
-        if issue_reference not in unique_references:
-            unique_references.append(issue_reference)
+        if issue_reference in seen_references:
+            continue
+        seen_references.add(issue_reference)
+        unique_references.append(issue_reference)
 
     return " ".join(unique_references)
