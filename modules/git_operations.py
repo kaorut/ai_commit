@@ -201,6 +201,42 @@ def get_last_commit_subject() -> str:
     return result.stdout.strip()
 
 
+def get_current_branch() -> str:
+    """
+    Return the current branch name.
+
+    Returns empty string when in detached HEAD state or on error.
+    """
+    result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], capture_output=True)
+    if result.returncode != 0:
+        return ""
+    branch = result.stdout.strip()
+    return "" if branch == "HEAD" else branch
+
+
+def is_head_committed_on_current_branch() -> bool:
+    """
+    Return True if HEAD was committed directly on the current branch.
+
+    Returns False when HEAD was brought in from another branch via checkout,
+    merge, pull, or similar operations (i.e. the topmost git log commit was
+    made on a different branch).
+    """
+    branch = get_current_branch()
+    if not branch:
+        return False
+
+    result = _run_git(
+        ["reflog", "show", branch, "-1", "--format=%gs"],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return False
+
+    action = result.stdout.strip()
+    return action.startswith("commit")
+
+
 def get_origin_owner_repo() -> tuple[str, str]:
     """Return (owner, repo) parsed from git remote origin URL."""
     result = _run_git(["remote", "get-url", "origin"], capture_output=True)

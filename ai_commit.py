@@ -14,6 +14,7 @@ from modules.git_operations import (
     get_last_commit_subject,
     get_origin_owner_repo,
     is_git_repository,
+    is_head_committed_on_current_branch,
 )
 from modules.github_issue_client import build_issue_context
 from modules.interactive_flow import run_interactive_commit_flow
@@ -129,6 +130,9 @@ def resolve_issue_references(issue_reference: str) -> str:
     """Resolve explicit or inherited issue references for this commit flow."""
     if issue_reference:
         return issue_reference
+
+    if not is_head_committed_on_current_branch():
+        return ""
 
     return find_issue_references(get_last_commit_subject())
 
