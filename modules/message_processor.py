@@ -14,6 +14,11 @@ SUBJECT_WITH_OPTIONAL_SCOPE_PATTERN: Pattern[str] = re.compile(
 
 BOLD_SUBJECT_PATTERN: Pattern[str] = re.compile(r"\*\*([^:]+?):\s*(.+)")
 
+# Matches a parenthesized issue reference such as (#123), (repo#123), or (owner/repo#123)
+PARENTHESIZED_ISSUE_REF_PATTERN: Pattern[str] = re.compile(
+    r"\(([\w/.-]*#\d+)\)"
+)
+
 
 def strip_surrounding_code_fence(text: str) -> str:
     """
@@ -239,6 +244,10 @@ def append_issue_reference_to_subject(message: str, issue_reference: str) -> str
     """
     Append issue reference to the subject line (first line) of commit message.
 
+    If the subject already contains the issue reference (possibly wrapped in
+    parentheses), the parentheses are removed and no duplicate reference is
+    appended.
+
     Args:
             message: Commit message
             issue_reference: Issue reference like '#42', 'repo#4242', or 'owner/repo#4242'
@@ -253,5 +262,13 @@ def append_issue_reference_to_subject(message: str, issue_reference: str) -> str
     if not lines:
         return message
 
-    lines[0] = f"{lines[0].rstrip()} {issue_reference}".strip()
+    # Remove parentheses from any parenthesized issue references in the subject
+    subject = PARENTHESIZED_ISSUE_REF_PATTERN.sub(r"\1", lines[0].rstrip()).strip()
+
+    # If the issue reference is already present, do not append again
+    if issue_reference in subject:
+        lines[0] = subject
+        return "\n".join(lines)
+
+    lines[0] = f"{subject} {issue_reference}".strip()
     return "\n".join(lines)
