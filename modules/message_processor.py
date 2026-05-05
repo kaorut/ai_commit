@@ -19,6 +19,11 @@ PARENTHESIZED_ISSUE_REF_PATTERN: Pattern[str] = re.compile(
     r"\(([\w/.-]*#\d+)\)"
 )
 
+# Matches an issue reference followed by trailing punctuation (e.g. #123. or #123,)
+ISSUE_REF_TRAILING_PUNCT_PATTERN: Pattern[str] = re.compile(
+    r"([\w/.-]*#\d+)[.,;:!?]+"
+)
+
 MAX_SUBJECT_WORDS = 16
 
 
@@ -109,6 +114,9 @@ def normalize_conventional_commit_message(message: str) -> str:
     # Step 3: Validate and fix Conventional Commits format
     if not CONVENTIONAL_SUBJECT_PATTERN.fullmatch(subject):
         subject = build_fallback_conventional_subject(subject)
+
+    # Step 3.2: Strip trailing period(s) from subject
+    subject = subject.rstrip(".")
 
     # Step 3.5: Convert type(scope): subject -> type: subject and move scope to body
     subject, extracted_scope = remove_scope_from_subject(subject)
@@ -288,6 +296,11 @@ def append_issue_reference_to_subject(message: str, issue_reference: str) -> str
 
     # Remove parentheses from any parenthesized issue references in the subject
     subject = PARENTHESIZED_ISSUE_REF_PATTERN.sub(r"\1", lines[0].rstrip()).strip()
+    # Strip trailing punctuation attached to any issue references in the subject
+    subject = ISSUE_REF_TRAILING_PUNCT_PATTERN.sub(r"\1", subject).strip()
+
+    # Strip trailing punctuation from the explicit issue_reference itself
+    issue_reference = ISSUE_REF_TRAILING_PUNCT_PATTERN.sub(r"\1", issue_reference).strip()
 
     # If the issue reference is already present, do not append again
     if issue_reference in subject:

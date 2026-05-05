@@ -5,6 +5,9 @@ Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, r
 Do NOT include scope in parentheses on the first line.
 If scope is important, put it in the body as: Scope: <area>.
 The subject line (first line) must be 16 words or fewer (including the type prefix).
+Write the subject in imperative mood (e.g. "add feature", "fix bug", "remove unused code"), not past tense or noun form.
+Do NOT end the subject line with a period.
+When including an issue reference (e.g. #123) in the subject, separate it from surrounding text with a space. Do not attach punctuation such as periods or commas directly to the issue reference.
 If the change is complex, summarize it briefly in the subject and put details in the body.
 Write the commit message in this order:
 1) Summary of the change, optionally with issue reference (e.g. "fix: handle empty input #123")
