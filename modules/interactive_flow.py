@@ -31,19 +31,19 @@ def run_interactive_commit_flow(message: str, commit_options: Sequence[str]) -> 
         print("Commit canceled.")
         return 0
 
-    if action == "yes":
-        commit_with_message(message, commit_options)
-        print("Commit completed.")
-        return 0
-
-    edited_message = edit_message_with_editor(message)
-    if not edited_message:
+    commit_message = message if action == "yes" else edit_message_with_editor(message)
+    if not commit_message:
         print("Commit message is empty. Commit canceled.")
         return 0
 
-    commit_with_message(edited_message, commit_options)
-    print("Commit completed.")
+    _commit_and_confirm(commit_message, commit_options)
     return 0
+
+
+def _commit_and_confirm(message: str, commit_options: Sequence[str]) -> None:
+    """Run git commit and print confirmation."""
+    commit_with_message(message, commit_options)
+    print("Commit completed.")
 
 
 def edit_message_with_editor(message: str) -> str:

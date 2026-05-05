@@ -22,7 +22,6 @@ from modules.message_processor import (
     append_issue_reference_to_subject,
     normalize_conventional_commit_message,
     remove_all_code_fences,
-    strip_surrounding_code_fence,
 )
 
 
@@ -69,17 +68,19 @@ def main() -> int:
         write_error(str(exc))
         return 1
 
-    return 0
+
+def _write_stderr(message: str) -> None:
+    sys.stderr.write(message.rstrip() + "\n")
 
 
 def write_error(message: str) -> None:
     """Write one error line to stderr."""
-    sys.stderr.write(message.rstrip() + "\n")
+    _write_stderr(message)
 
 
 def write_warning(message: str) -> None:
     """Write one warning line to stderr."""
-    sys.stderr.write(message.rstrip() + "\n")
+    _write_stderr(message)
 
 
 def run_commit_flow(base_dir: Path, options: ParsedOptions) -> int:
@@ -183,8 +184,7 @@ def normalize_generated_message(
     normalization_mode: Literal["strict", "loose"],
 ) -> str:
     """Normalize raw model output into the final commit message text."""
-    normalized = strip_surrounding_code_fence(message)
-    normalized = remove_all_code_fences(normalized)
+    normalized = remove_all_code_fences(message)
     if normalization_mode == "strict":
         normalized = normalize_conventional_commit_message(normalized)
     return append_issue_reference_to_subject(normalized, issue_reference)

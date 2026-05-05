@@ -27,34 +27,6 @@ ISSUE_REF_TRAILING_PUNCT_PATTERN: Pattern[str] = re.compile(
 MAX_SUBJECT_WORDS = 16
 
 
-def strip_surrounding_code_fence(text: str) -> str:
-    """
-    Remove markdown code fence wrappers (```) from text.
-
-    Args:
-            text: Original text possibly wrapped in code fence
-
-    Returns:
-            Text without surrounding code fences
-    """
-    stripped = text.strip()
-    if not stripped.startswith("```"):
-        return stripped
-
-    lines = stripped.splitlines()
-    if len(lines) < 3:
-        return stripped
-
-    if not lines[0].startswith("```"):
-        return stripped
-
-    if lines[-1].strip() != "```":
-        return stripped
-
-    inner_text = "\n".join(lines[1:-1]).strip()
-    return inner_text
-
-
 def normalize_conventional_commit_message(message: str) -> str:
     """
     Ensure commit message follows Conventional Commits format.
@@ -68,66 +40,20 @@ def normalize_conventional_commit_message(message: str) -> str:
     Raises:
             ValueError: If message is empty after processing
     """
-    # Step 1: Remove all code fences first
     text = remove_all_code_fences(message).strip()
     if not text:
         return ""
 
     lines = text.splitlines()
+    subject = _select_subject_candidate(lines, original_message=message)
 
-    # Step 2: Try to find the best subject line
-    subject = None
-
-    # First, check the first line
-    candidate = sanitize_subject_line(lines[0].strip())
-    if (
-        len(candidate) >= 5
-        and any(c.isalpha() for c in candidate)
-        and not candidate.startswith("chore: ")
-    ):
-        subject = candidate
-
-    # If first line is not good, look for better candidates
-    if not subject or len(subject) < 15 or candidate.startswith("chore: "):
-        # Also check original message for markdown bold lines
-        # Pattern handles both **text:** and **text):** formats
-        for original_line in message.splitlines():
-            candidate = _extract_markdown_bold_subject_candidate(original_line)
-            if candidate:
-                subject = candidate
-                break
-
-        # Still no good subject? Try other lines from decomposed message
-        if not subject:
-            for candidate_line in lines[1:]:
-                candidate = candidate_line.strip()
-                candidate = re.sub(r"\*+", "", candidate)
-                candidate = sanitize_subject_line(candidate)
-                if len(candidate) >= 5 and any(c.isalpha() for c in candidate):
-                    subject = candidate
-                    break
-
-    # If still no subject, use a fallback
-    if not subject:
-        subject = "chore: update changes"
-
-    # Step 3: Validate and fix Conventional Commits format
     if not CONVENTIONAL_SUBJECT_PATTERN.fullmatch(subject):
         subject = build_fallback_conventional_subject(subject)
 
-    # Step 3.2: Strip trailing period(s) from subject
     subject = subject.rstrip(".")
-
-    # Step 3.5: Convert type(scope): subject -> type: subject and move scope to body
     subject, extracted_scope = remove_scope_from_subject(subject)
 
-    # Step 4: Clean body lines (everything after the first line we're using)
-    body_lines = [line.rstrip() for line in lines[1:]]
-    if body_lines:
-        while body_lines and not body_lines[0].strip():
-            body_lines.pop(0)
-        while body_lines and not body_lines[-1].strip():
-            body_lines.pop()
+    body_lines = _strip_blank_edge_lines([line.rstrip() for line in lines[1:]])
 
     if extracted_scope and not has_scope_line(body_lines):
         body_lines = (
@@ -136,13 +62,48 @@ def normalize_conventional_commit_message(message: str) -> str:
             else [f"Scope: {extracted_scope}"]
         )
 
-    # Step 4.5: Enforce subject word limit; move overflow into body
     subject, body_lines = _trim_subject_to_word_limit(subject, body_lines)
 
     if not body_lines:
         return subject
 
     return "\n".join([subject, "", *body_lines]).strip()
+
+
+def _select_subject_candidate(lines: list[str], *, original_message: str) -> str:
+    """Return the best subject line candidate from parsed lines."""
+    candidate = sanitize_subject_line(lines[0].strip())
+    subject: str | None = None
+    if (
+        len(candidate) >= 5
+        and any(c.isalpha() for c in candidate)
+        and not candidate.startswith("chore: ")
+    ):
+        subject = candidate
+        if len(subject) >= 15:
+            return subject
+
+    for original_line in original_message.splitlines():
+        bold_candidate = _extract_markdown_bold_subject_candidate(original_line)
+        if bold_candidate:
+            return bold_candidate
+
+    if not subject:
+        for line in lines[1:]:
+            candidate = sanitize_subject_line(re.sub(r"\*+", "", line.strip()))
+            if len(candidate) >= 5 and any(c.isalpha() for c in candidate):
+                return candidate
+
+    return subject or "chore: update changes"
+
+
+def _strip_blank_edge_lines(lines: list[str]) -> list[str]:
+    """Remove leading and trailing blank lines in-place and return the list."""
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return lines
 
 
 def remove_scope_from_subject(subject: str) -> tuple[str, str | None]:
@@ -172,10 +133,7 @@ def remove_scope_from_subject(subject: str) -> tuple[str, str | None]:
 
 def has_scope_line(body_lines: list[str]) -> bool:
     """Return True if body already contains a Scope: line."""
-    for line in body_lines:
-        if line.strip().lower().startswith("scope:"):
-            return True
-    return False
+    return any(line.strip().lower().startswith("scope:") for line in body_lines)
 
 
 def build_fallback_conventional_subject(subject: str) -> str:
@@ -188,7 +146,6 @@ def build_fallback_conventional_subject(subject: str) -> str:
     Returns:
             Subject with 'chore:' prefix
     """
-    # First sanitize the subject
     text = sanitize_subject_line(subject).strip()
     if not text:
         return "chore: update changes"
@@ -210,9 +167,7 @@ def sanitize_subject_line(subject: str) -> str:
             Sanitized subject line
     """
     text = subject.strip()
-    # Remove code fence markers (``` with optional language)
     text = re.sub(r"```\w*", "", text).strip()
-    # Remove any remaining backticks
     text = re.sub(r"`+", "", text).strip()
     return text
 
@@ -245,17 +200,12 @@ def _extract_markdown_bold_subject_candidate(line: str) -> str:
     part1 = bold_match.group(1).strip()
     part2 = bold_match.group(2).strip().lstrip("*").strip()
     candidate = sanitize_subject_line(part1 + ": " + part2)
-    if len(candidate) < 5:
-        return ""
-    return candidate
+    return candidate if len(candidate) >= 5 else ""
 
 
 def remove_all_code_fences(text: str) -> str:
     """
     Remove ALL markdown code fences (```) from text.
-
-    Uses a simple regex approach to remove all code fence markers
-    and their language specifiers.
 
     Args:
             text: Text possibly containing code fences
@@ -263,11 +213,8 @@ def remove_all_code_fences(text: str) -> str:
     Returns:
             Text with all code fences removed
     """
-    # Remove code fence start markers with language specifier (e.g., ```python)
     result = re.sub(r"```\w*", "", text)
-    # Remove any remaining backticks
     result = re.sub(r"`+", "", result)
-    # Clean up excessive whitespace
     result = re.sub(r"\n\s*\n+", "\n\n", result)
     return result.strip()
 
@@ -294,15 +241,11 @@ def append_issue_reference_to_subject(message: str, issue_reference: str) -> str
     if not lines:
         return message
 
-    # Remove parentheses from any parenthesized issue references in the subject
+    # Normalize parenthesized refs and trailing punctuation in both subject and ref
     subject = PARENTHESIZED_ISSUE_REF_PATTERN.sub(r"\1", lines[0].rstrip()).strip()
-    # Strip trailing punctuation attached to any issue references in the subject
     subject = ISSUE_REF_TRAILING_PUNCT_PATTERN.sub(r"\1", subject).strip()
-
-    # Strip trailing punctuation from the explicit issue_reference itself
     issue_reference = ISSUE_REF_TRAILING_PUNCT_PATTERN.sub(r"\1", issue_reference).strip()
 
-    # If the issue reference is already present, do not append again
     if issue_reference in subject:
         lines[0] = subject
         return "\n".join(lines)
