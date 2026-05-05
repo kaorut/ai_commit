@@ -19,6 +19,8 @@ PARENTHESIZED_ISSUE_REF_PATTERN: Pattern[str] = re.compile(
     r"\(([\w/.-]*#\d+)\)"
 )
 
+MAX_SUBJECT_WORDS = 16
+
 
 def strip_surrounding_code_fence(text: str) -> str:
     """
@@ -126,6 +128,9 @@ def normalize_conventional_commit_message(message: str) -> str:
             else [f"Scope: {extracted_scope}"]
         )
 
+    # Step 4.5: Enforce subject word limit; move overflow into body
+    subject, body_lines = _trim_subject_to_word_limit(subject, body_lines)
+
     if not body_lines:
         return subject
 
@@ -202,6 +207,25 @@ def sanitize_subject_line(subject: str) -> str:
     # Remove any remaining backticks
     text = re.sub(r"`+", "", text).strip()
     return text
+
+
+def _trim_subject_to_word_limit(
+    subject: str, body_lines: list[str], max_words: int = MAX_SUBJECT_WORDS
+) -> tuple[str, list[str]]:
+    """
+    Trim subject to at most max_words words.
+
+    If the subject exceeds max_words, the overflow words are prepended to
+    body_lines so no information is lost.
+    """
+    words = subject.split()
+    if len(words) <= max_words:
+        return subject, body_lines
+
+    trimmed = " ".join(words[:max_words])
+    overflow = " ".join(words[max_words:])
+    new_body = [overflow, "", *body_lines] if body_lines else [overflow]
+    return trimmed, new_body
 
 
 def _extract_markdown_bold_subject_candidate(line: str) -> str:

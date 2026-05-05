@@ -4,6 +4,8 @@ The first line must strictly follow Conventional Commits format: type: subject.
 Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
 Do NOT include scope in parentheses on the first line.
 If scope is important, put it in the body as: Scope: <area>.
+The subject line (first line) must be 16 words or fewer (including the type prefix).
+If the change is complex, summarize it briefly in the subject and put details in the body.
 Write the commit message in this order:
 1) Summary of the change, optionally with issue reference (e.g. "fix: handle empty input #123")
 2) One blank line
