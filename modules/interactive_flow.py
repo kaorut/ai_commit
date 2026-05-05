@@ -31,7 +31,7 @@ def run_interactive_commit_flow(message: str, commit_options: Sequence[str]) -> 
         print("Commit canceled.")
         return 0
 
-    if action == "ok":
+    if action == "yes":
         commit_with_message(message, commit_options)
         print("Commit completed.")
         return 0
@@ -133,14 +133,14 @@ def resolve_editor_command() -> str:
 def prompt_user_action() -> str:
     """Prompt user action and return normalized choice."""
     while True:
-        choice = input("Choose action [OK/Edit/Cancel] (default: OK): ").strip().lower()
-        if not choice or choice in ("ok", "o"):
-            return "ok"
+        choice = input("Choose action [Yes/No/Edit] (default: Yes): ").strip().lower()
+        if not choice or choice in ("yes", "y"):
+            return "yes"
         if choice in ("edit", "e"):
             return "edit"
-        if choice in ("cancel", "c"):
+        if choice in ("no", "n"):
             return "cancel"
-        print("Invalid choice. Enter OK, Edit, or Cancel.")
+        print("Invalid choice. Enter Yes, No, or Edit.")
 
 
 def display_generated_message(message: str) -> None:
