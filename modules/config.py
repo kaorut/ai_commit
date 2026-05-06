@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any, Literal, Mapping
 
 
+ReasoningEffort = Literal["low", "medium", "high"]
+
+
 @dataclass(frozen=True)
 class OpenAIConfig:
     """OpenAI-compatible API settings."""
@@ -13,6 +16,7 @@ class OpenAIConfig:
     api_url: str
     model: str
     api_key: str
+    reasoning_effort: ReasoningEffort | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +182,23 @@ def _read_normalization_mode(
     )
 
 
+def _read_reasoning_effort(
+    config: Mapping[str, Any], *, config_path: Path, prefix: str
+) -> ReasoningEffort | None:
+    """Read optional reasoning effort setting."""
+    value = config.get("reasoning_effort")
+    if value is None or str(value).strip() == "":
+        return None
+
+    effort = str(value).strip().lower()
+    if effort in ("low", "medium", "high"):
+        return effort
+
+    raise ValueError(
+        f"Invalid value in {config_path}: {prefix}.reasoning_effort must be 'low', 'medium', or 'high'"
+    )
+
+
 def _normalize_api_config(config: Mapping[str, Any], *, config_path: Path) -> AppConfig:
     """Normalize config into runtime keys used by the application."""
     if "openai" in config or "github" in config:
@@ -206,6 +227,11 @@ def _normalize_nested_api_config(
             api_url=str(openai["api_url"]),
             model=str(openai["model"]),
             api_key=str(openai["api_key"]),
+            reasoning_effort=_read_reasoning_effort(
+                openai,
+                config_path=config_path,
+                prefix="openai",
+            ),
         ),
         github_resources=_normalize_github_resources(
             config.get("github", {}),
@@ -232,6 +258,11 @@ def _normalize_legacy_flat_config(
             api_url=str(config["api_url"]),
             model=str(config["model"]),
             api_key=str(config["api_key"]),
+            reasoning_effort=_read_reasoning_effort(
+                config,
+                config_path=config_path,
+                prefix="legacy",
+            ),
         ),
         github_resources=(
             (GitHubResource(name="*", api_key=str(config.get("github_token") or "").strip()),)

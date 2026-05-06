@@ -22,8 +22,9 @@ A CLI tool that generates a commit message from Git diffs using AI, asks for con
 ```json
 {
   "openai": {
-    "api_url": "https://api.x.ai/v1",
-    "model": "grok-4-latest",
+    "api_url": "https://api.openai.com/v1",
+    "model": "gpt-5.4-mini",
+    "reasoning_effort": "low",
     "api_key": "YOUR_OPENAI_API_KEY"
   },
   "github": [
@@ -50,6 +51,7 @@ A CLI tool that generates a commit message from Git diffs using AI, asks for con
 Required keys are `openai.api_url`, `openai.model`, and `openai.api_key`.
 Optional key:
 
+- `openai.reasoning_effort`: reasoning level passed to the Responses API. Supported values: `low`, `medium`, `high`.
 - `github[]`: resource-specific GitHub tokens used to call GitHub Issues API for issue-context RAG.
 - `github[].name`: resource selector. Supported forms are `owner/repo`, `owner/*`, `owner`, `repo`, and `*`.
 - `github[].api_key`: token for the matched resource.

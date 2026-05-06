@@ -1,7 +1,8 @@
 {
   "openai": {
-    "api_url": "https://api.x.ai/v1",
-    "model": "grok-4-1-fast-non-reasoning",
+    "api_url": "https://api.openai.com/v1",
+    "model": "gpt-5.4-mini",
+    "reasoning_effort": "low",
     "api_key": "YOUR_API_KEY"
   },
   "github": [

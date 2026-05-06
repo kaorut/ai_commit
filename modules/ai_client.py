@@ -47,12 +47,15 @@ def generate_commit_message(
     ]
 
     try:
-        response = client.responses.create(
-            model=openai_config.model,
-            input=input_items,
-            temperature=0.2,
-            store=False,
-        )
+        request_args = {
+            "model": openai_config.model,
+            "input": input_items,
+            "store": False,
+        }
+        if openai_config.reasoning_effort is not None:
+            request_args["reasoning"] = {"effort": openai_config.reasoning_effort}
+
+        response = client.responses.create(**request_args)
         content = extract_text_from_response(response)
     except Exception as exc:
         responses_url = f"{base_url}/responses"
