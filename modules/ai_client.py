@@ -1,5 +1,8 @@
 """AI API client module for generating commit messages."""
 
+import itertools
+import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +58,8 @@ def generate_commit_message(
         if openai_config.reasoning_effort is not None:
             request_args["reasoning"] = {"effort": openai_config.reasoning_effort}
 
-        response = client.responses.create(**request_args)
+        with _ProgressIndicator():
+            response = client.responses.create(**request_args)
         content = extract_text_from_response(response)
     except Exception as exc:
         responses_url = f"{base_url}/responses"
@@ -141,3 +145,43 @@ def normalize_provider_base_url(api_url: str) -> str:
             return url[: -len(suffix)]
 
     return url
+
+
+_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
+
+class _ProgressIndicator:
+    """Show a spinner on the console while active, then clear it."""
+
+    def __init__(self, *, stream=None) -> None:
+        self._stream = stream or sys.stderr
+        self._stop_event = threading.Event()
+        self._thread = None
+
+    def __enter__(self) -> "_ProgressIndicator":
+        self._thread = threading.Thread(
+            target=self._spin,
+            name="progress-indicator",
+            daemon=True,
+        )
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join()
+        self._clear()
+
+    def _spin(self) -> None:
+        for frame in itertools.cycle(_SPINNER_FRAMES):
+            if self._stop_event.is_set():
+                return
+            self._stream.write("\r" + frame)
+            self._stream.flush()
+            self._stop_event.wait(0.1)
+
+    def _clear(self) -> None:
+        self._stream.write("\r" + " " * 2)
+        self._stream.write("\r")
+        self._stream.flush()
